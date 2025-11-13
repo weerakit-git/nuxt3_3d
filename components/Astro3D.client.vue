@@ -1,6 +1,33 @@
 <template>
-  <canvas ref="experience"/>
+  <div style="position: relative; width: 100%; height: 100vh;">
+    
+    <canvas 
+      ref="experience" 
+      style="position: absolute; inset: 0; z-index: 1;"
+    />
+
+    <div 
+      style="
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        z-index: 10;
+        color: salmon;
+        font-size: 24px;
+      "
+    >
+    <span> HTML รันได้เถอะสาธุ อยากนอนแล้ว</span>
+    <img src="/public/image1.jpg" alt="" >
+     
+
+    </div>
+
+  </div>
 </template>
+
 
 <script setup lang="ts">
 import * as THREE from 'three'
@@ -82,3 +109,10 @@ function loop() {
   renderer?.render(scene, camera)
 }
 </script>
+
+<style scoped>
+img{
+  width: 250px;
+  height: 250px;
+}
+</style>
