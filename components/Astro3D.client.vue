@@ -1,86 +1,119 @@
 <template>
-  <div id="container3D"></div>
+  <canvas ref="experience" />
 </template>
 
-<script setup>
-import { onMounted } from 'vue'
+<script setup lang="ts">
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import { ref, onMounted, watch } from 'vue'
+import { useWindowSize } from '@vueuse/core'
 
-let scene, camera, renderer
-let model, mixer
+const experience = ref<HTMLCanvasElement | null>(null)
 
+// responsive
+const { width, height } = useWindowSize()
+const aspectRatio = computed(() => width.value / height.value)
+
+// three vars
+let scene: THREE.Scene | null = null
+let camera: THREE.PerspectiveCamera | null = null
+let renderer: THREE.WebGLRenderer | null = null
+let mixer: THREE.AnimationMixer | null = null
+
+const bgColor = new THREE.Color('#F54927')
+
+
+// -----------------------------------------
+// Mounted
+// -----------------------------------------
 onMounted(() => {
-  // Scene
-  scene = new THREE.Scene()
+  init3D()
+  loop()
+})
 
-  // Camera
+
+// -----------------------------------------
+// Init
+// -----------------------------------------
+function init3D() {
+  scene = new THREE.Scene()
+  scene.background = bgColor
+  scene.fog = new THREE.Fog(bgColor, 0.1, 75)
+
   camera = new THREE.PerspectiveCamera(
-    30,
-    window.innerWidth / window.innerHeight,
+    75,
+    aspectRatio.value,
     0.1,
     1000
   )
-  camera.position.z = 10
-  camera.lookAt(0, 0, 0)
+  camera.position.set(0, 0, 4)
+  scene.add(camera)
 
-  // Renderer
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.toneMapping = THREE.LinearToneMapping
-  renderer.toneMappingExposure = Math.pow(2, -10)
-  renderer.setSize(window.innerWidth, window.innerHeight)
-  renderer.setPixelRatio(window.devicePixelRatio)
+  renderer = new THREE.WebGLRenderer({
+    canvas: experience.value!,
+    antialias: false,          // IMPORTANT for old iPhones
+    powerPreference: "low-power"
+  })
 
-  document.getElementById("container3D").appendChild(renderer.domElement)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.2)) // IMPORTANT
+  renderer.setSize(width.value, height.value)
 
-  // Lights
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1)
-  dirLight.position.set(1, 1, 1)
-  scene.add(dirLight)
+  // CHECK WEBGL CONTEXT (CRITICAL)
+  const gl = renderer.getContext()
+  if (!gl) {
+    console.warn("WebGL context failed → disable rendering but page will NOT crash")
+    renderer = null
+    return
+  }
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.6)
-  scene.add(ambient)
 
-  // Loader
+  // LIGHTS (safe)
+  const dir = new THREE.DirectionalLight(0xffffff, 1)
+  dir.position.set(3, 3, 3)
+  scene.add(dir)
+
+  const amb = new THREE.AmbientLight(0xffffff, 0.4)
+  scene.add(amb)
+
+
+  // LOAD MODEL
   const loader = new GLTFLoader()
 
-  loader.load("/model.glb", (gltf) => {
-    model = gltf.scene
-
-    const box = new THREE.Box3().setFromObject(model)
-    const center = new THREE.Vector3()
-    box.getCenter(center)
-    model.position.sub(center)
+  loader.load('/model.glb', (gltf) => {
+    const model = gltf.scene
 
     model.scale.set(1, 1, 1)
-    scene.add(model)
+    scene!.add(model)
 
-    mixer = new THREE.AnimationMixer(model)
     if (gltf.animations.length > 0) {
+      mixer = new THREE.AnimationMixer(model)
       mixer.clipAction(gltf.animations[0]).play()
     }
   })
-
-  // Animate
-  function animate() {
-    requestAnimationFrame(animate)
-    if (mixer) mixer.update(0.01)
-    renderer.render(scene, camera)
-  }
-  animate()
-
-  // Resize
-  window.addEventListener("resize", () => {
-    camera.aspect = window.innerWidth / window.innerHeight
-    camera.updateProjectionMatrix()
-    renderer.setSize(window.innerWidth, window.innerHeight)
-  })
-})
-</script>
-
-<style>
-#container3D {
-  position: fixed;
-  inset: 0;
 }
-</style>
+
+
+// -----------------------------------------
+// Resize
+// -----------------------------------------
+watch(aspectRatio, () => {
+  if (!renderer || !camera) return
+  camera.aspect = aspectRatio.value
+  camera.updateProjectionMatrix()
+  renderer.setSize(width.value, height.value)
+})
+
+
+// -----------------------------------------
+// Loop
+// -----------------------------------------
+function loop() {
+  requestAnimationFrame(loop)
+
+  if (!renderer || !scene || !camera) return
+
+  if (mixer) mixer.update(0.01)
+
+  renderer.render(scene, camera)
+}
+</script>
